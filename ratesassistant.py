@@ -32,8 +32,8 @@ class CentralBankRussia(Resource):
         import datetime
 
         dict = {
-            'usd': 1,
-            'eur': 23
+            'USD': 1,
+            'EUR': 23
         }
         response = requests.get('https://news.yandex.ru/quotes/graph_{}.json'.format(dict.get(currency, 1)))
         if response.status_code != 200:
