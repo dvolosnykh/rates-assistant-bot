@@ -30,7 +30,6 @@ class CentralBankRussia(Resource):
     @staticmethod
     def get_yandex_rates(currency, request_date):
         import datetime
-        import json
 
         dict = {
             'usd': 1,
@@ -46,11 +45,12 @@ class CentralBankRussia(Resource):
             return None
 
         last_entry = prices[-1]
-        date = datetime.date.fromtimestamp(last_entry[0] / 1000).strftime('%d.%m.%Y')
+        tz = datetime.timezone(datetime.timedelta(hours=3))
+        date = datetime.datetime.fromtimestamp(last_entry[0] / 1000, tz)
         rate = last_entry[1]
         return {
             'currency': currency,
-            'date': date,
+            'date': date.strftime('%d.%m.%Y'),
             'rate': rate
         }
 
