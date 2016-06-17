@@ -1,11 +1,47 @@
-from flask import Flask, abort
+from flask import Flask, abort, request
 from flask_restful import Resource, Api, reqparse
 import requests
 
+rates_assistant_token = open('ratesassistant.token').read().strip()
 
 app = Flask(__name__)
-api = Api(app, '/ratesassistant')
+api = Api(app)
 
+
+@api.resource('/bot' + rates_assistant_token)
+class RatesAssistant(Resource):
+    def post(self):
+        data = request.get_json()
+        print(data)
+
+        msg = data.get('message')
+        if msg is None:
+            msg = data.get('edited_message')
+        if msg is None:
+            return None
+
+        command = msg['text'].split()
+        if command[0] == '/cbr':
+            cbr = CentralBankRussia()
+            currency = command[1] if len(command) > 1 else 'usd'
+            result = cbr.get(currency)
+
+            amount = 1
+            try:
+                amount = int(command[2]) if len(command) > 2 else 1
+            except ValueError:
+                try:
+                    amount = float(command[2])
+                except ValueError:
+                    amount = 1
+
+            return {
+                'method': 'sendMessage',
+                'chat_id': msg['chat']['id'],
+                'text': '{} {} = {} RUB    {}'.format(amount, result['currency'], amount * result['rate'], result['date'])
+            }
+
+        return None
 
 @api.resource('/cbr', '/cbr/<currency>')
 class CentralBankRussia(Resource):
@@ -25,37 +61,6 @@ class CentralBankRussia(Resource):
             abort(404)
 
     def get_rates(self, currency, request_date):
-        return self.get_yandex_rates(currency, request_date)
-
-    @staticmethod
-    def get_yandex_rates(currency, request_date):
-        import datetime
-
-        dict = {
-            'USD': 1,
-            'EUR': 23
-        }
-        response = requests.get('https://news.yandex.ru/quotes/graph_{}.json'.format(dict.get(currency, 1)))
-        if response.status_code != 200:
-            return None
-
-        data = response.json()
-        prices = data['prices']
-        if len(prices) == 0:
-            return None
-
-        last_entry = prices[-1]
-        tz = datetime.timezone(datetime.timedelta(hours=3))
-        date = datetime.datetime.fromtimestamp(last_entry[0] / 1000, tz)
-        rate = last_entry[1]
-        return {
-            'currency': currency,
-            'date': date.strftime('%d.%m.%Y'),
-            'rate': rate
-        }
-
-    @staticmethod
-    def get_cbr_rates(currency, request_date):
         from lxml import etree
 
         if request_date is None:
@@ -64,6 +69,8 @@ class CentralBankRussia(Resource):
             response = requests.get('http://www.cbr.ru/scripts/XML_daily_eng.asp?date_req={}'.format(request_date))
 
         if response.status_code != 200:
+            print(response.status_code)
+            print(response.text)
             return None
 
         doc = etree.fromstring(response.content)
